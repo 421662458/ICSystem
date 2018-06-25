@@ -1,18 +1,25 @@
 package com.zhbit.service.impl;
 
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionSupport;
 import com.zhbit.dao.BaseDAO;
 import com.zhbit.entity.*;
 import com.zhbit.entity.base.DataGrid;
 import com.zhbit.entity.base.PageBean;
+import com.zhbit.entity.vo.VoLoginLog;
 import com.zhbit.entity.vo.VoUser;
 import com.zhbit.exception.ValidateFieldsException;
 import com.zhbit.service.UserService;
 import com.zhbit.util.Encrypt;
+import com.zhbit.util.IpUtil;
 import com.zhbit.util.StringUtil;
+import com.zhbit.util.UserAgentKit;
+import org.apache.struts2.StrutsStatics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import javax.servlet.http.HttpServletRequest;
 
 import javax.annotation.Resource;
 import javax.xml.bind.ValidationException;
@@ -29,10 +36,19 @@ import java.util.*;
 public class UserServiceImpl extends BaseServiceImpl implements UserService {
 
    private BaseDAO<User> userDao;
+   private BaseDAO<LoginLog> loginLogBaseDAO;
    private BaseDAO<Role> roleDao;
    private BaseDAO<InternationalStudent> internationalStudentDAO;
    private BaseDAO<UserRole> userRoleDAO;
    private BaseDAO<CollegeInfo> collegeInfoDAO;
+
+    public BaseDAO<LoginLog> getLoginLogBaseDAO() {
+        return loginLogBaseDAO;
+    }
+    @Autowired
+    public void setLoginLogBaseDAO(BaseDAO<LoginLog> loginLogBaseDAO) {
+        this.loginLogBaseDAO = loginLogBaseDAO;
+    }
 
     public BaseDAO<CollegeInfo> getCollegeInfoDAO() {
         return collegeInfoDAO;
@@ -85,6 +101,7 @@ public class UserServiceImpl extends BaseServiceImpl implements UserService {
     public VoUser login(VoUser voUser) {
        User tbUser=userDao.get("from User u where u.userNo = ? and u.password = ? and u.sign = ?",new Object[]{voUser.getUserNo(), Encrypt.e(voUser.getPassword()),voUser.getSign()});
        if(tbUser!=null){
+           //this.addLoginLog();
            voUser.setId(tbUser.getId());
            voUser.setUserNo(tbUser.getUserNo());
            voUser.setUserName(tbUser.getUserName());
@@ -159,6 +176,16 @@ public class UserServiceImpl extends BaseServiceImpl implements UserService {
            return  voUser;
        }
         return null;
+    }
+
+    public void addLoginLog(String userNo){
+        HttpServletRequest request= (HttpServletRequest) ActionContext.getContext().get(StrutsStatics.HTTP_REQUEST);
+        LoginLog loginLog=new LoginLog();
+        loginLog.setUserNo(userNo);
+        loginLog.setUserAgent(UserAgentKit.getUserAgent(request).toString());
+        loginLog.setLoginTime(new Date());
+        loginLog.setLoginIp(IpUtil.getIpAddr(request));
+        loginLogBaseDAO.save(loginLog);
     }
 
     /**
@@ -270,7 +297,7 @@ public class UserServiceImpl extends BaseServiceImpl implements UserService {
         return userDao.find(hql,values,pageBean);
     }
     private Long total(VoUser voUser){
-        String hql="select count(*) from User u where 1=1";
+        String hql="select count(*) from User u where 1=1 ";
         List<Object> values=new ArrayList<Object>();
         hql=addWhere(voUser,hql,values);
         return userDao.count(hql,values);
@@ -391,7 +418,7 @@ public class UserServiceImpl extends BaseServiceImpl implements UserService {
     public boolean isUniqueUser(String userNo ){
         User tu=null;
         if(StringUtil.isNotEmpty(userNo)){
-            tu=this.userDao.get("from User u where u.userNo= ? ",new String[]{userNo});
+            tu=this.userDao.get(" from User u where u.userNo= ? ",new String[]{userNo});
             if(tu==null){
                 return true ;
             }
@@ -401,18 +428,18 @@ public class UserServiceImpl extends BaseServiceImpl implements UserService {
 
     /**
      * 保存用户和角色的关系
-     * @param user
-     * @param u
+     * @param voUser
+     * @param tu
      */
-    private void saveUserRole(VoUser user,User u){
-        System.out.println("userId:"+u.getId());
-        userRoleDAO.executeHql("delete UserRole ur where ur.user = ? ",new Object[]{u});
-        if(user.getRoleIds()!=null){
-            for(String id:user.getRoleIds().split(",")){
+    private void saveUserRole(VoUser voUser,User tu){
+        System.out.println("userId:"+tu.getId());
+        userRoleDAO.executeHql("delete UserRole ur where ur.user = ? ",new Object[]{tu});
+        if(voUser.getRoleIds()!=null){
+            for(String id:voUser.getRoleIds().split(",")){
                 UserRole userRole =new UserRole();
                 userRole.setCid(UUID.randomUUID().toString());
                 userRole.setRole(roleDao.get(Role.class,id.trim()));
-                userRole.setUser(u);
+                userRole.setUser(tu);
                 userRoleDAO.save(userRole);
             }
         }

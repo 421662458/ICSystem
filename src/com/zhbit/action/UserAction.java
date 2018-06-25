@@ -110,6 +110,7 @@ public class UserAction extends ActionSupport implements ModelDriven<VoUser> {
         }
         VoUser u = userService.login(voUser);
         if (u != null) {
+            userService.addLoginLog(u.getUserNo());
             //放入到sessionInfo中
             SessionInfo sessionInfo = new SessionInfo();
             sessionInfo.setUserId(Integer.toString(u.getId()));
@@ -201,7 +202,6 @@ public class UserAction extends ActionSupport implements ModelDriven<VoUser> {
      * 用户角色批量编辑
      */
     public void roleEdit() {
-
         System.out.println("ids:"+voUser.getIds()+" roleIds:"+voUser.getRoleIds());
         Json j = new Json();
         try {
@@ -220,7 +220,6 @@ public class UserAction extends ActionSupport implements ModelDriven<VoUser> {
                 ex.printStackTrace();
             }
         }
-
     }
     /**
      * 用户删除
